@@ -1,8 +1,8 @@
 package.path = package.path .. ";src/?.lua"
 
 local safe_requires = {
-  ["0.1.0-r1"] = function()
-    return require("010r1/nightly_lists")
+  ["0.1.0-alpha.9-p.0"] = function()
+    return require("010a9p0/nightly_lists")
   end
 }
 
