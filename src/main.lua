@@ -2,7 +2,7 @@ package.path = package.path .. ";src/?.lua"
 
 local safe_requires = {
   ["0.1.0-alpha.9-p.0"] = function()
-    return require("010a9p0/nightly_lists")
+    return require("010a9p0/parameters")
   end
 }
 
@@ -27,6 +27,18 @@ local function is_compatible(vm_version, param_version)
   return allowed_params[param_version] == true
 end
 
+local function copy_table(value)
+  if type(value) ~= "table" then
+    return value
+  end
+
+  local copy = {}
+  for key, item in pairs(value) do
+    copy[copy_table(key)] = copy_table(item)
+  end
+  return copy
+end
+
 function get_parameters(vm_version, param_version)
   if not is_compatible(vm_version, param_version) then
     error("The parameter version " .. tostring(param_version) .. " is not compatible with VM " .. tostring(vm_version))
@@ -42,8 +54,7 @@ function get_parameters(vm_version, param_version)
     error("Parameter version " .. tostring(param_version) .. " is not implemented")
   end
 
-  return {
-    version = param_version,
-    nightly_lists = require_func(),
-  }
+  local parameters = copy_table(require_func())
+  parameters.version = param_version
+  return parameters
 end
