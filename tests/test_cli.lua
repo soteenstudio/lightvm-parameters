@@ -3,7 +3,7 @@ local output = os.tmpname()
 os.remove(output)
 
 local file = assert(io.open(input, "w"))
-assert(file:write("block vm_config extends lightvm_safe {}"))
+assert(file:write("defaults base { enabled = true } block application extends base { name = \"demo\" }"))
 assert(file:close())
 
 local function succeeded(command)
@@ -19,7 +19,7 @@ assert(succeeded("lua src/cli.lua " .. input .. " " .. output), "compile mode mu
 file = assert(io.open(output, "r"))
 local json = file:read("*all")
 file:close()
-assert(json:find('"vm_config"', 1, true), "CLI output must contain the configuration")
+assert(json:find('"application"', 1, true), "CLI output must contain the configuration")
 
 os.remove(input)
 os.remove(output)

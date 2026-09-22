@@ -17,31 +17,6 @@ local function merge(base, overlay)
     return result
 end
 
-local baseSecurity = {
-    maxIo = 100, maxImport = 3, maxAlloc = 50, maxCall = 200, maxJump = 100,
-    maxTicks = 1000000, maxStackSize = 128, allowedImports = { "math", "time", "utils" },
-    unsafeMode = false, timeBudget = "Cheap"
-}
-
-local presets = {
-    lightvm_safe = {
-        caps = { "Observe" }, runtimeConfig = { nightly = false },
-        errorOptions = { backtrace = false, explain = false, hint = true, diagnosticLinks = true },
-        securityConfig = copy(baseSecurity)
-    },
-    lightvm_development = {
-        caps = { "Observe", "Debug" }, runtimeConfig = { nightly = true },
-        errorOptions = { backtrace = true, explain = true, hint = true, diagnosticLinks = true },
-        securityConfig = copy(baseSecurity)
-    },
-    lightvm_restricted = {
-        caps = { "Observe" }, runtimeConfig = { nightly = false },
-        errorOptions = { backtrace = false, explain = false, hint = false, diagnosticLinks = false },
-        securityConfig = { maxIo = 0, maxImport = 0, maxAlloc = 25, maxCall = 100, maxJump = 50,
-            maxTicks = 250000, maxStackSize = 64, allowedImports = {}, unsafeMode = false, timeBudget = "Cheap" }
-    }
-}
-
 function M.parse(tokens)
     local idx = 1
     local variables, aliases, envCache, envSeen = {}, {}, {}, {}
@@ -164,7 +139,7 @@ function M.parse(tokens)
             aliases[name.val] = value
         elseif token.val == "defaults" then
             local name, profile = declaration("Profile")
-            if profiles[name] or presets[name] then error("Duplicate profile: " .. name) end
+            if profiles[name] then error("Duplicate profile: " .. name) end
             profiles[name] = profile
         elseif token.val == "block" then
             local name, block = declaration("Block")
@@ -176,7 +151,6 @@ function M.parse(tokens)
     local resolved, resolving = {}, {}
     local function resolveProfile(name)
         if resolved[name] then return copy(resolved[name]) end
-        if presets[name] then return copy(presets[name]) end
         local profile = profiles[name]; if not profile then error("Unknown profile: " .. tostring(name)) end
         if resolving[name] then error("Profile inheritance cycle involving: " .. name) end
         resolving[name] = true
@@ -187,21 +161,13 @@ function M.parse(tokens)
 
     for name in pairs(profiles) do resolveProfile(name) end
 
-    local function includesRestricted(name, seen)
-        if name == "lightvm_restricted" then return true end
-        if not name or presets[name] then return false end
-        seen = seen or {}; if seen[name] then return false end; seen[name] = true
-        return profiles[name] and includesRestricted(profiles[name].parent, seen) or false
-    end
-
-    local output, metadata = {}, { presets = {}, restricted = {} }
+    local output = {}
     for name, block in pairs(blocks) do
         local result = block.parent and resolveProfile(block.parent) or {}
         result = merge(result, block.explicit); result = merge(block.defaults, result)
-        output[name] = result; metadata.presets[name] = block.parent
-        metadata.restricted[name] = includesRestricted(block.parent)
+        output[name] = result
     end
-    return output, metadata
+    return output
 end
 
 return M
