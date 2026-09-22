@@ -1,6 +1,7 @@
 package.path = package.path .. ";src/?.lua;./?.lua"
 
 local lexer, parser, compiler = require("lexer"), require("parser"), require("compiler")
+local packageCompiler = require("luacof.compiler")
 
 local function parse(source) return parser.parse(lexer.tokenize(source)) end
 local function expectError(source, fragment, compile)
@@ -69,6 +70,27 @@ assert(arbitrary:find('"retries":-1', 1, true), "generic numeric values are acce
 local deterministic = compiler.compile('block z { value = 2 } block a { value = 1 }')
 assert(deterministic:sub(1, 5) == '{"a":', "JSON object keys are sorted")
 assert(deterministic == compiler.compile('block a { value = 1 } block z { value = 2 }'))
+assert(packageCompiler.compile('block a { value = 1 }') == compiler.compile('block a { value = 1 }'), "compatibility compiler entry point is preserved")
+
+local typed = compiler.resolve([[
+interface Database { host: string ports: number[] tls?: boolean }
+interface Service { name: string database: Database metadata: { owner: string } }
+local ports: number[] = [5432, 5433]
+env SERVICE_NAME: string = $env:UNSET_NAME ?? "api"
+block service: Service {
+    name = $env:SERVICE_NAME
+    database { host = "localhost" ports = $var:ports }
+    metadata { owner = "platform" }
+}
+]])
+assert(typed.service.database.ports[2] == 5433, "typed arrays and nested interfaces resolve")
+expectError('local count: number = "many" block x {}', "expected number, got string", true)
+expectError('block x { values: number[] = [1, "two"] }', "x.values[2]", true)
+expectError('block x { item: { name: string } = "bad" }', "expected object", true)
+expectError('interface X { enabled: boolean } block x: X {}', "x.enabled: missing required field", true)
+expectError('interface X { enabled?: boolean } block x: X { extra = true }', "x.extra: unknown field", true)
+expectError('interface Inner { value: number } interface Outer { inner: Inner } block x: Outer { inner { value = "bad" } }', "x.inner.value", true)
+expectError('block x: Missing {}', "unknown interface", true)
 
 os.getenv = originalGetenv
 print("compiler tests passed")
