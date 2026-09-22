@@ -1,0 +1,15 @@
+# Configures an application with a server and demonstrates nested reusable interfaces.
+interface Server {
+    host = string
+    port = number
+}
+
+interface Application {
+    name = string
+    server = Server
+}
+
+block application: Application {
+    name = "inventory"
+    server { host = "127.0.0.1" port = 8081 }
+}

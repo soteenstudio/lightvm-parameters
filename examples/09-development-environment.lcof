@@ -1,0 +1,14 @@
+# Configures a development deployment and demonstrates profile inheritance.
+defaults base_environment {
+    replicas = 3
+    logging { level = "info" }
+}
+
+defaults development extends base_environment {
+    replicas = 1
+    logging { level = "debug" }
+}
+
+block deployment extends development {
+    name = "catalog-development"
+}

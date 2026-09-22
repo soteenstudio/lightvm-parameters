@@ -1,0 +1,7 @@
+# Configures a background worker and demonstrates immutable local values and arrays.
+local queues: string[] = ["email", "billing", "reports"]
+
+block worker_service {
+    concurrency = 8
+    queues = $var:queues
+}

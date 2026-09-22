@@ -1,0 +1,10 @@
+# Configures telemetry and demonstrates optional interface fields.
+interface Telemetry {
+    enabled = boolean
+    endpoint? = string
+    headers? = string[]
+}
+
+block telemetry: Telemetry {
+    enabled = false
+}

@@ -1,0 +1,8 @@
+# Configures a mail server and demonstrates named, typed environment aliases.
+env SMTP_HOST: string = $env:SMTP_HOST ?? "localhost"
+env SMTP_PORT: number = $env:SMTP_PORT ?? "2525"
+
+block mail {
+    host = $env:SMTP_HOST
+    port = $env:SMTP_PORT
+}

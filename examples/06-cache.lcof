@@ -1,0 +1,9 @@
+# Configures an application cache and demonstrates a reusable defaults profile.
+defaults cache_defaults {
+    driver = "redis"
+    ttl_seconds = 300
+}
+
+block cache extends cache_defaults {
+    host = "cache.internal"
+}

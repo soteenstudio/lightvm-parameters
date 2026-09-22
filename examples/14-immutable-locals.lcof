@@ -1,0 +1,8 @@
+# Configures shared service metadata and demonstrates immutable scalar and array locals.
+local owner: string = "platform"
+local labels: string[] = ["managed", "internal"]
+
+block metadata {
+    owner = $var:owner
+    labels = $var:labels
+}

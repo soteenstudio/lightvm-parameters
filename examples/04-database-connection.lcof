@@ -1,0 +1,9 @@
+# Configures a database connection and demonstrates nil-only environment fallbacks.
+env DATABASE_HOST = $env:DATABASE_HOST ?? "127.0.0.1"
+env DATABASE_PORT: number = $env:DATABASE_PORT ?? "5432"
+
+block database {
+    driver = "postgresql"
+    host = $env:DATABASE_HOST
+    port = $env:DATABASE_PORT
+}

@@ -1,0 +1,12 @@
+# Configures a service contract and demonstrates applying an interface to a block.
+interface Service {
+    name = string
+    enabled = boolean
+    port = number
+}
+
+block service: Service {
+    name = "search"
+    enabled = true
+    port = 9200
+}

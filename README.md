@@ -14,6 +14,43 @@ lua tests/test_cli.lua
 It also applies interface and type validation. Add `--plain` for stable,
 ASCII-only output in scripts.
 
+## Examples
+
+The [`examples/`](examples/) directory contains 25 complete configurations:
+
+1. [Web service](examples/01-web-service.lcof)
+2. [Worker service](examples/02-worker-service.lcof)
+3. [Scheduled job](examples/03-scheduled-job.lcof)
+4. [Database connection](examples/04-database-connection.lcof)
+5. [Message queue](examples/05-message-queue.lcof)
+6. [Cache](examples/06-cache.lcof)
+7. [Logging](examples/07-logging.lcof)
+8. [Feature flags](examples/08-feature-flags.lcof)
+9. [Development environment](examples/09-development-environment.lcof)
+10. [Production environment](examples/10-production-environment.lcof)
+11. [Recursive merge](examples/11-recursive-merge.lcof)
+12. [Field defaults](examples/12-field-defaults.lcof)
+13. [Environment aliases](examples/13-environment-aliases.lcof)
+14. [Immutable locals](examples/14-immutable-locals.lcof)
+15. [Nil-only fallback](examples/15-nil-only-fallback.lcof)
+16. [Lua `or` fallback](examples/16-lua-or-fallback.lcof)
+17. [String concatenation](examples/17-string-concatenation.lcof)
+18. [Array values](examples/18-array-values.lcof)
+19. [Typed fields](examples/19-typed-fields.lcof)
+20. [Service interface](examples/20-service-interface.lcof)
+21. [Optional interface fields](examples/21-optional-interface-fields.lcof)
+22. [Nested interfaces](examples/22-nested-interfaces.lcof)
+23. [JSON-oriented output](examples/23-json-output.lcof)
+24. [Multi-block stack](examples/24-multi-block-stack.lcof)
+25. [Typed application](examples/25-typed-application.lcof)
+
+Compile or validate any example from the repository root:
+
+```sh
+lua src/cli.lua examples/01-web-service.lcof web-service.json
+lua src/cli.lua --check examples/01-web-service.lcof
+```
+
 ## Package layout
 
 The implementation lives under `src/luacof/`: `lexer.lua` records source

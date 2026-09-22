@@ -1,0 +1,15 @@
+# Configures a small application stack and demonstrates multiple output blocks.
+block frontend {
+    image = "frontend:1.0"
+    port = 8080
+}
+
+block backend {
+    image = "backend:1.0"
+    port = 9000
+}
+
+block database {
+    image = "postgres:17"
+    port = 5432
+}
