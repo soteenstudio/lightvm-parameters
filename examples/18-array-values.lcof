@@ -1,0 +1,5 @@
+# Configures allowed request methods and demonstrates typed arrays.
+block gateway {
+    methods: string[] = ["GET", "POST", "PUT"]
+    retry_delays: number[] = [1, 5, 15]
+}

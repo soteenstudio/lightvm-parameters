@@ -1,0 +1,6 @@
+# Configures maintenance mode and demonstrates that ?? preserves false values.
+env MAINTENANCE = false ?? true
+
+block application {
+    maintenance = $env:MAINTENANCE
+}

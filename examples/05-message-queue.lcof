@@ -1,0 +1,7 @@
+# Configures a message queue client and demonstrates field defaults.
+block message_queue {
+    default protocol = "amqp"
+    default durable = true
+    host = "queue.internal"
+    topics = ["orders", "notifications"]
+}
