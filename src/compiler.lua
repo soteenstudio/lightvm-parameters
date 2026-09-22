@@ -1,61 +1,56 @@
--- compiler.lua
 local M = {}
 local lexer = require("lexer")
 local parser = require("parser")
+local validation = require("lightvm_validation")
 
-local json
-local ok, dkjson = pcall(require, "dkjson")
-if ok then
-    json = dkjson
-else
-    -- Fallback simple JSON encoder if dkjson missing
-    json = {
-        encode = function(tbl)
-            local function serialize(val)
-                local t = type(val)
-                if t == "string" then
-                    local escapes = {
-                        ['"'] = '\\"',
-                        ['\\'] = '\\\\',
-                        ['\b'] = '\\b',
-                        ['\f'] = '\\f',
-                        ['\n'] = '\\n',
-                        ['\r'] = '\\r',
-                        ['\t'] = '\\t'
-                    }
-                    local escaped = val:gsub('[%z\1-\31\\"]', function(char)
-                        return escapes[char] or string.format("\\u%04x", char:byte())
-                    end)
-                    return '"' .. escaped .. '"'
-                elseif t == "number" or t == "boolean" then
-                    return tostring(val)
-                elseif t == "table" then
-                    local res = {}
-                    local is_array = #val > 0
-                    for k, v in pairs(val) do
-                        if is_array then
-                            table.insert(res, serialize(v))
-                        else
-                            table.insert(res, serialize(tostring(k)) .. ":" .. serialize(v))
-                        end
-                    end
-                    if is_array then
-                        return "[" .. table.concat(res, ",") .. "]"
-                    else
-                        return "{" .. table.concat(res, ",") .. "}"
-                    end
-                end
-                return "null"
-            end
-            return serialize(tbl)
-        end
-    }
+local function escape(value)
+    local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\b'] = '\\b', ['\f'] = '\\f', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
+    return '"' .. value:gsub('[%z\1-\31\\"]', function(char)
+        return escapes[char] or string.format("\\u%04x", char:byte())
+    end) .. '"'
+end
+
+local function isArray(value)
+    if #value == 0 then return next(value) == nil end
+    for key in pairs(value) do
+        if type(key) ~= "number" or key < 1 or key > #value or key % 1 ~= 0 then return false end
+    end
+    return true
+end
+
+local function encode(value)
+    local kind = type(value)
+    if kind == "string" then return escape(value) end
+    if kind == "number" then
+        if value ~= value or value == math.huge or value == -math.huge then error("Cannot encode non-finite number") end
+        return tostring(value)
+    end
+    if kind == "boolean" then return tostring(value) end
+    if kind ~= "table" then error("Cannot encode " .. kind .. " as JSON") end
+    local result = {}
+    if isArray(value) then
+        for index = 1, #value do result[index] = encode(value[index]) end
+        return "[" .. table.concat(result, ",") .. "]"
+    end
+    local keys = {}
+    for key in pairs(value) do
+        if type(key) ~= "string" then error("JSON object keys must be strings") end
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    for _, key in ipairs(keys) do result[#result + 1] = escape(key) .. ":" .. encode(value[key]) end
+    return "{" .. table.concat(result, ",") .. "}"
+end
+
+function M.resolve(sourceCode)
+    local ast, metadata = parser.parse(lexer.tokenize(sourceCode))
+    validation.validate(ast, metadata)
+    return ast, metadata
 end
 
 function M.compile(sourceCode)
-    local tokens = lexer.tokenize(sourceCode)
-    local ast = parser.parse(tokens)
-    return json.encode(ast, { indent = true })
+    local ast = M.resolve(sourceCode)
+    return encode(ast)
 end
 
 return M

@@ -1,69 +1,44 @@
--- lexer.lua
 local M = {}
 
 function M.tokenize(source)
-    local tokens = {}
-    local i = 1
-    local len = #source
-
-    while i <= len do
+    local tokens, i = {}, 1
+    local function add(kind, value) tokens[#tokens + 1] = { type = kind, val = value } end
+    while i <= #source do
         local c = source:sub(i, i)
-
-        if c:match("%s") then
-            i = i + 1
-        elseif c == "#" then
-            while i <= len and source:sub(i, i) ~= "\n" do
-                i = i + 1
-            end
-        elseif c == "?" and source:sub(i, i + 1) == "??" then
-            table.insert(tokens, { type = "OP", val = "??" })
-            i = i + 2
-        elseif c == "{" or c == "}" or c == "=" or c == "+"
-            or c == "(" or c == ")" then
-            table.insert(tokens, { type = "PUNCT", val = c })
-            i = i + 1
+        if c:match("%s") then i = i + 1
+        elseif c == "#" then while i <= #source and source:sub(i, i) ~= "\n" do i = i + 1 end
+        elseif source:sub(i, i + 1) == "??" then add("OP", "??"); i = i + 2
+        elseif c == "{" or c == "}" or c == "=" or c == "+" or c == "(" or c == ")"
+            or c == "," or c == "[" or c == "]" then add("PUNCT", c); i = i + 1
         elseif c == '"' then
+            i = i + 1
+            local chars = {}
+            while i <= #source and source:sub(i, i) ~= '"' do
+                local ch = source:sub(i, i)
+                if ch == "\\" then
+                    local escaped = source:sub(i + 1, i + 1)
+                    local values = { n = "\n", r = "\r", t = "\t", ['"'] = '"', ['\\'] = '\\' }
+                    if not values[escaped] then error("Unsupported string escape: \\" .. escaped) end
+                    chars[#chars + 1] = values[escaped]; i = i + 2
+                else chars[#chars + 1] = ch; i = i + 1 end
+            end
+            if i > #source then error("Unterminated string") end
+            add("STRING", table.concat(chars)); i = i + 1
+        elseif c == "@" then add("OP", "@"); i = i + 1
+        elseif c == "$" or c:match("[%a_%d%-]") then
             local start = i
-            i = i + 1
-            while i <= len and source:sub(i, i) ~= '"' do
-                i = i + 1
-            end
-            if i > len then
-                error("String tidak ditutup")
-            end
-            i = i + 1
-            local strVal = source:sub(start + 1, i - 2)
-            table.insert(tokens, { type = "STRING", val = strVal })
-        elseif c == "@" then
-            table.insert(tokens, { type = "OP", val = "@" })
-            i = i + 1
-        elseif c == "$" or c:match("[%w_]") then
-            -- Tambahin '$' supaya dia bisa baca token yang diawali dengan $ seperti $env:...
-            local start = i
-            while i <= len and source:sub(i, i):match("[%w_$:%.-]") do
-                i = i + 1
-            end
+            while i <= #source and source:sub(i, i):match("[%w_$:%.-]") do i = i + 1 end
             local word = source:sub(start, i - 1)
-            
-            if word == "true" or word == "false" then
-                table.insert(tokens, { type = "BOOL", val = (word == "true") })
-            elseif tonumber(word) then
-                table.insert(tokens, { type = "NUMBER", val = tonumber(word) })
+            if word == "true" or word == "false" then add("BOOL", word == "true")
+            elseif tonumber(word) ~= nil then add("NUMBER", tonumber(word))
             elseif word:sub(1, 5) == "$env:" then
-                local envName = word:sub(6)
-                if envName == "" then
-                    error("Nama environment variable diharapkan setelah $env:")
-                end
-                table.insert(tokens, {
-                    type = "ENV",
-                    name = envName
-                })
-            else
-                table.insert(tokens, { type = "IDENT", val = word })
-            end
-        else
-            error("Karakter tidak dikenal: " .. c)
-        end
+                if #word == 5 then error("Environment name expected after $env:") end
+                add("ENV", word:sub(6))
+            elseif word:sub(1, 5) == "$var:" then
+                if #word == 5 then error("Variable name expected after $var:") end
+                add("VAR", word:sub(6))
+            else add("IDENT", word) end
+        else error("Unknown character: " .. c) end
     end
     return tokens
 end
