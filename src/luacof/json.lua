@@ -10,7 +10,7 @@ end
 
 local function isArray(value)
     if getmetatable(value) and getmetatable(value).__luacof_array then return true end
-    if #value == 0 then return next(value) == nil end
+    if #value == 0 then return false end
     for key in pairs(value) do
         if type(key) ~= "number" or key < 1 or key > #value or key % 1 ~= 0 then return false end
     end

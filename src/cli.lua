@@ -3,12 +3,20 @@ local compiler = require("compiler")
 local diagnostics = require("luacof.diagnostics")
 
 local function main()
-    local check, plain, positional = false, false, {}
+    local check, plain, invalid, positional = false, false, false, {}
     for _, value in ipairs(arg) do
-        if value == "--check" then check = true elseif value == "--plain" then plain = true else positional[#positional + 1] = value end
+        if value == "--check" then
+            check = true
+        elseif value == "--plain" then
+            plain = true
+        elseif value:sub(1, 2) == "--" then
+            invalid = true
+        else
+            positional[#positional + 1] = value
+        end
     end
     local input, output = positional[1], positional[2]
-    if not input or (not check and not output) then
+    if invalid or #positional ~= (check and 1 or 2) then
         io.stderr:write("usage: lua src/cli.lua [--plain] [--check] <input.lcof> [output.json]\n"); return 1
     end
     local file = io.open(input, "r")

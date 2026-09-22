@@ -84,6 +84,8 @@ local deterministic = compiler.compile('block z { value = 2 } block a { value = 
 assert(deterministic:sub(1, 5) == '{"a":', "JSON object keys are sorted")
 assert(deterministic == compiler.compile('block a { value = 1 } block z { value = 2 }'))
 assert(packageCompiler.compile('block a { value = 1 }') == compiler.compile('block a { value = 1 }'), "compatibility compiler entry point is preserved")
+assert(compiler.compile('block empty {} block nested { child {} } block arrays { items = [] }') ==
+    '{"arrays":{"items":[]},"empty":{},"nested":{"child":{}}}', "empty blocks encode as objects while marked arrays remain arrays")
 
 local typed = compiler.resolve([[
 interface Database { host = string ports = number[] tls? = boolean }
@@ -109,6 +111,7 @@ assert(colonTyped.x.value.label == "ok", "colon type member separators remain su
 expectError('local count: number = "many" block x {}', "expected number, got string", true)
 expectError('block x { values: number[] = [1, "two"] }', "x.values[2]", true)
 expectError('block x { item: { name = string } = "bad" }', "expected object", true)
+expectError('block x { default enabled: string = "fallback" enabled = false }', "expected string, got boolean", true)
 expectError('interface X { enabled: boolean } block x: X {}', "x.enabled: missing required field", true)
 expectError('interface X { enabled?: boolean } block x: X { extra = true }', "x.extra: unknown field", true)
 expectError('interface Inner { value: number } interface Outer { inner: Inner } block x: Outer { inner { value = "bad" } }', "x.inner.value", true)

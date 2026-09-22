@@ -49,7 +49,8 @@ function M.check(output, metadata)
             if type(value) ~= "table" or value[segment] == nil then found = false; break end
             value = value[segment]
         end
-        validate(found and value or field.value, field.type, path, field.location)
+        if not found then value = field.value end
+        validate(value, field.type, path, field.location)
     end
     for blockName, application in pairs(metadata.blockInterfaces) do
         local interface = interfaces[application.name]
