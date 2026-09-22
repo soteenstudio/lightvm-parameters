@@ -8,13 +8,13 @@ local function main()
 
     if not inputFile or not outputFile then
         print("❌ Penggunaan: lua cli.lua <input.lcof> <output.json>")
-        return
+        return 1
     end
 
     local f = io.open(inputFile, "r")
     if not f then
         print("❌ File input '" .. inputFile .. "' tidak ditemukan!")
-        return
+        return 1
     end
     local code = f:read("*all")
     f:close()
@@ -24,18 +24,23 @@ local function main()
     local success, jsonOutput = pcall(compiler.compile, code)
     if not success then
         print("❌ Gagal Compile: " .. tostring(jsonOutput))
-        return
+        return 1
     end
 
     local out = io.open(outputFile, "w")
     if not out then
         print("❌ Gagal membuka file output untuk ditulis!")
-        return
+        return 1
     end
-    out:write(jsonOutput)
-    out:close()
+    local writeSuccess = out:write(jsonOutput)
+    local closeSuccess = out:close()
+    if not writeSuccess or not closeSuccess then
+        print("❌ Gagal menulis file output!")
+        return 1
+    end
 
     print("✨ Sukses! Berhasil di-compile ke " .. outputFile)
+    return 0
 end
 
-main()
+os.exit(main())

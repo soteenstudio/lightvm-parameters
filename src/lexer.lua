@@ -24,6 +24,9 @@ function M.tokenize(source)
             while i <= len and source:sub(i, i) ~= '"' do
                 i = i + 1
             end
+            if i > len then
+                error("String tidak ditutup")
+            end
             i = i + 1
             local strVal = source:sub(start + 1, i - 2)
             table.insert(tokens, { type = "STRING", val = strVal })
@@ -44,8 +47,11 @@ function M.tokenize(source)
                 table.insert(tokens, { type = "NUMBER", val = tonumber(word) })
             elseif word:sub(1, 5) == "$env:" then
                 local envName = word:sub(6)
-                local envVal = os.getenv(envName) or "DEFAULT_VAL"
-                table.insert(tokens, { type = "STRING", val = envVal })
+                table.insert(tokens, {
+                    type = "ENV",
+                    name = envName,
+                    val = os.getenv(envName)
+                })
             else
                 table.insert(tokens, { type = "IDENT", val = word })
             end

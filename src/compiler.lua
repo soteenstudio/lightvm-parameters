@@ -14,7 +14,19 @@ else
             local function serialize(val)
                 local t = type(val)
                 if t == "string" then
-                    return '"' .. val .. '"'
+                    local escapes = {
+                        ['"'] = '\\"',
+                        ['\\'] = '\\\\',
+                        ['\b'] = '\\b',
+                        ['\f'] = '\\f',
+                        ['\n'] = '\\n',
+                        ['\r'] = '\\r',
+                        ['\t'] = '\\t'
+                    }
+                    local escaped = val:gsub('[%z\1-\31\\"]', function(char)
+                        return escapes[char] or string.format("\\u%04x", char:byte())
+                    end)
+                    return '"' .. escaped .. '"'
                 elseif t == "number" or t == "boolean" then
                     return tostring(val)
                 elseif t == "table" then
@@ -24,7 +36,7 @@ else
                         if is_array then
                             table.insert(res, serialize(v))
                         else
-                            table.insert(res, '"' .. tostring(k) .. '":' .. serialize(v))
+                            table.insert(res, serialize(tostring(k)) .. ":" .. serialize(v))
                         end
                     end
                     if is_array then
