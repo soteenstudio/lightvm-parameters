@@ -33,18 +33,22 @@ function M.tokenize(source)
             if i > #source then diagnostics.raise("lex", "unterminated string", loc) end
             advance(); add("STRING", table.concat(chars), loc)
         elseif c == "@" then local loc = location(); advance(); add("OP", "@", loc)
+        elseif source:sub(i, i + 4) == "$env:" or source:sub(i, i + 4) == "$var:" then
+            local loc = location()
+            local kind = source:sub(i + 1, i + 3) == "env" and "ENV" or "VAR"
+            for _ = 1, 5 do advance() end
+            local start = i
+            while i <= #source and source:sub(i, i):match("[%w_%.%-]") do advance() end
+            if i == start then
+                diagnostics.raise("lex", (kind == "ENV" and "environment" or "variable") .. " name expected after $" .. kind:lower() .. ":", loc)
+            end
+            add(kind, source:sub(start, i - 1), loc)
         elseif c == "$" or c:match("[%a_%d%-]") then
             local loc, start = location(), i
-            while i <= #source and source:sub(i, i):match("[%w_$:%.-]") do advance() end
+            while i <= #source and source:sub(i, i):match("[%w_$%.%-]") do advance() end
             local word = source:sub(start, i - 1)
             if word == "true" or word == "false" then add("BOOL", word == "true", loc)
             elseif tonumber(word) ~= nil then add("NUMBER", tonumber(word), loc)
-            elseif word:sub(1, 5) == "$env:" then
-                if #word == 5 then diagnostics.raise("lex", "environment name expected after $env:", loc) end
-                add("ENV", word:sub(6), loc)
-            elseif word:sub(1, 5) == "$var:" then
-                if #word == 5 then diagnostics.raise("lex", "variable name expected after $var:", loc) end
-                add("VAR", word:sub(6), loc)
             else add("IDENT", word, loc) end
         else diagnostics.raise("lex", "unknown character: " .. c, location()) end
     end
