@@ -1,0 +1,8 @@
+# Configures structured logging and demonstrates environment aliases with Lua-style or fallback.
+env LOG_LEVEL = $env:LOG_LEVEL or "info"
+
+block logging {
+    level = $env:LOG_LEVEL
+    format = "json"
+    destinations = ["stdout"]
+}

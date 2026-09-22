@@ -1,0 +1,5 @@
+# Configures application feature flags and demonstrates boolean values in nested blocks.
+block feature_flags {
+    checkout { enabled = true gradual_rollout = false }
+    recommendations { enabled = false }
+}

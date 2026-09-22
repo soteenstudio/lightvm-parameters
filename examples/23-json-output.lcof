@@ -1,0 +1,6 @@
+# Configures JSON-oriented metadata and demonstrates deterministic nested objects and arrays.
+block manifest {
+    name = "analytics"
+    version = "1.0.0"
+    metadata { owner = "data" tags = ["batch", "stable"] }
+}

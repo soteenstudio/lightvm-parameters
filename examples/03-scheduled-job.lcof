@@ -1,0 +1,5 @@
+# Configures a scheduled cleanup job and demonstrates nested blocks.
+block cleanup_job {
+    schedule = "0 2 * * *"
+    task { name = "remove-expired-sessions" timeout = 900 }
+}

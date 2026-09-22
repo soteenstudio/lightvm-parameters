@@ -1,0 +1,24 @@
+# Configures a typed application and demonstrates interfaces, profiles, locals, and environment aliases together.
+interface Runtime {
+    port = number
+    tags = string[]
+}
+
+interface Application {
+    enabled = boolean
+    runtime = Runtime
+}
+
+local application_tags: string[] = ["public", "v1"]
+env APPLICATION_PORT: number = $env:APPLICATION_PORT ?? "8080"
+
+defaults enabled_application {
+    enabled = true
+}
+
+block application: Application extends enabled_application {
+    runtime {
+        port = $env:APPLICATION_PORT
+        tags = $var:application_tags
+    }
+}

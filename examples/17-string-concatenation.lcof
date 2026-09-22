@@ -1,0 +1,7 @@
+# Configures an API endpoint and demonstrates string concatenation with local values.
+local scheme = "https://"
+local host = "api.example.test"
+
+block client {
+    endpoint = $var:scheme + $var:host + "/v1"
+}

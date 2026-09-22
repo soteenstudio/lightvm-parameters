@@ -1,0 +1,6 @@
+# Configures a display theme and demonstrates Lua-style or fallback for false or unset values.
+env THEME = $env:APPLICATION_THEME or "light"
+
+block display {
+    theme = $env:THEME
+}

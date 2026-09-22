@@ -1,0 +1,14 @@
+# Configures a production deployment and demonstrates inherited defaults with explicit overrides.
+defaults service {
+    replicas = 2
+    health { path = "/health" interval_seconds = 30 }
+}
+
+defaults production extends service {
+    replicas = 6
+}
+
+block deployment extends production {
+    name = "catalog-production"
+    health { interval_seconds = 10 }
+}

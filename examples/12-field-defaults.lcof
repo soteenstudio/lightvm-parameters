@@ -1,0 +1,6 @@
+# Configures an upload service and demonstrates fallback fields overridden by explicit values.
+block uploads {
+    default max_megabytes = 25
+    default storage = "local"
+    storage = "object-store"
+}

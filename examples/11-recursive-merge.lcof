@@ -1,0 +1,8 @@
+# Configures an API by recursively merging nested profile and block settings.
+defaults api_base {
+    server { host = "0.0.0.0" limits { requests = 100 burst = 20 } }
+}
+
+block api extends api_base {
+    server { limits { requests = 250 } }
+}

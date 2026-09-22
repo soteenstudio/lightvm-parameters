@@ -1,0 +1,6 @@
+# Configures a rate limiter and demonstrates optional static types on block fields.
+block rate_limiter {
+    enabled: boolean = true
+    requests_per_minute: number = 120
+    strategy: string = "token-bucket"
+}
