@@ -1,0 +1,14 @@
+block vm_config {
+    name = "KopiVM-Core"
+    version = "2.1.0"
+    debug = true
+    
+    # Ambil env dari sistem operasi host
+    host_ip = $env:VM_HOST or "127.0.0.1"
+    
+    cluster {
+        nodes = 4
+        region = "ap-southeast-1"
+        secret_token = @"secret_" + $env:NODE_ENV
+    }
+}
