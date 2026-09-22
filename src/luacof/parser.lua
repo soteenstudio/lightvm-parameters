@@ -1,6 +1,10 @@
+-- Copyright 2026 SoTeen Studio
+-- Parses LuaCof tokens into declarations, expressions, types, and interfaces.
+
 local diagnostics = require("luacof.diagnostics")
 local M = {}
 
+-- Parse a complete token stream into an unresolved document.
 function M.parse(tokens)
     local index = 1
     local function current() return tokens[index] end
@@ -16,6 +20,7 @@ function M.parse(tokens)
         index = index + 1; return token
     end
     local function typeMemberSeparator(kind, name)
+        -- Type members prefer Lua-style "=" while retaining legacy ":" support.
         if not accept("=") and not accept(":") then
             fail("expected '=' or ':' after " .. kind .. " field " .. name.val)
         end
@@ -74,6 +79,7 @@ function M.parse(tokens)
         end
         return value
     end
+    -- Precedence from tightest to loosest is atom, +, ??, then Lua-style or.
     local function concatenation() return binary(atom, "+", function(t, op) return t.val == op end) end
     local function fallback() return binary(concatenation, "??", function(t, op) return t.val == op end) end
     parseExpression = function() return binary(fallback, "or", function(t, op) return t.type == "IDENT" and t.val == op end) end

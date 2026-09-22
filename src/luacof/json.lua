@@ -1,3 +1,6 @@
+-- Copyright 2026 SoTeen Studio
+-- Encodes resolved LuaCof values as compact, deterministic JSON.
+
 local diagnostics = require("luacof.diagnostics")
 local M = {}
 
@@ -9,6 +12,7 @@ local function escape(value)
 end
 
 local function isArray(value)
+    -- The resolver marker distinguishes empty arrays from empty objects.
     if getmetatable(value) and getmetatable(value).__luacof_array then return true end
     if #value == 0 then return false end
     for key in pairs(value) do
@@ -36,10 +40,12 @@ local function encode(value)
         if type(key) ~= "string" then diagnostics.raise("json", "object keys must be strings") end
         keys[#keys + 1] = key
     end
+    -- Sorting object keys makes output independent of Lua table iteration order.
     table.sort(keys)
     for _, key in ipairs(keys) do result[#result + 1] = escape(key) .. ":" .. encode(value[key]) end
     return "{" .. table.concat(result, ",") .. "}"
 end
 
+-- Encode a supported LuaCof value, raising a json diagnostic when unsupported.
 M.encode = encode
 return M

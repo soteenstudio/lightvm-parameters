@@ -1,6 +1,10 @@
+-- Copyright 2026 SoTeen Studio
+-- Tokenizes LuaCof source while retaining line and column locations.
+
 local diagnostics = require("luacof.diagnostics")
 local M = {}
 
+-- Scan source text into the token stream consumed by the parser.
 function M.tokenize(source)
     local tokens, i, line, column = {}, 1, 1, 1
     local function location() return { line = line, column = column } end
@@ -33,6 +37,7 @@ function M.tokenize(source)
             if i > #source then diagnostics.raise("lex", "unterminated string", loc) end
             advance(); add("STRING", table.concat(chars), loc)
         elseif c == "@" then local loc = location(); advance(); add("OP", "@", loc)
+        -- Reference prefixes include their colon; ordinary identifiers stop before it.
         elseif source:sub(i, i + 4) == "$env:" or source:sub(i, i + 4) == "$var:" then
             local loc = location()
             local kind = source:sub(i + 1, i + 3) == "env" and "ENV" or "VAR"
