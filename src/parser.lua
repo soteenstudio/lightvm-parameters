@@ -1,146 +1,207 @@
--- parser.lua
 local M = {}
+local ARRAY = {}
 
-local parseExpression
-
-local function parseAtom(tokens, idx)
-    local token = tokens[idx]
-    if not token then
-        error("Nilai diharapkan pada akhir input")
-    end
-
-    if token.type == "OP" and token.val == "@" then
-        return parseAtom(tokens, idx + 1)
-    end
-
-    if token.val == "(" then
-        local value, nextIdx = parseExpression(tokens, idx + 1)
-        if not tokens[nextIdx] or tokens[nextIdx].val ~= ")" then
-            error("Kurung tutup ')' diharapkan")
-        end
-        return value, nextIdx + 1
-    end
-
-    if token.type == "ENV" then
-        return os.getenv(token.name), idx + 1
-    end
-
-    if token.type == "STRING" or token.type == "NUMBER" or token.type == "BOOL" then
-        return token.val, idx + 1
-    end
-
-    error("Nilai tidak valid: " .. tostring(token.val))
+local function copy(value)
+    if type(value) ~= "table" then return value end
+    local result = {}; for key, item in pairs(value) do result[key] = copy(item) end
+    return setmetatable(result, getmetatable(value))
 end
 
-local function parseConcatenation(tokens, idx)
-    local value
-    value, idx = parseAtom(tokens, idx)
-
-    while tokens[idx] and tokens[idx].val == "+" do
-        local nextValue
-        nextValue, idx = parseAtom(tokens, idx + 1)
-        if value == nil or nextValue == nil then
-            error("Variabel environment yang belum disetel tidak dapat digabungkan")
-        end
-        value = tostring(value) .. tostring(nextValue)
+local function merge(base, overlay)
+    local result = copy(base or {})
+    for key, value in pairs(overlay or {}) do
+        if type(value) == "table" and type(result[key]) == "table" and getmetatable(value) ~= ARRAY then
+            result[key] = merge(result[key], value)
+        else result[key] = copy(value) end
     end
-
-    return value, idx
+    return result
 end
 
-local function parseNilFallback(tokens, idx)
-    local value
-    value, idx = parseConcatenation(tokens, idx)
+local baseSecurity = {
+    maxIo = 100, maxImport = 3, maxAlloc = 50, maxCall = 200, maxJump = 100,
+    maxTicks = 1000000, maxStackSize = 128, allowedImports = { "math", "time", "utils" },
+    unsafeMode = false, timeBudget = "Cheap"
+}
 
-    while tokens[idx] and tokens[idx].type == "OP" and tokens[idx].val == "??" do
-        local fallback
-        fallback, idx = parseConcatenation(tokens, idx + 1)
-        if value == nil then
-            value = fallback
-        end
-    end
-
-    return value, idx
-end
-
-parseExpression = function(tokens, idx)
-    local value
-    value, idx = parseNilFallback(tokens, idx)
-
-    while tokens[idx] and tokens[idx].type == "IDENT" and tokens[idx].val == "or" do
-        local fallback
-        fallback, idx = parseNilFallback(tokens, idx + 1)
-        if value == nil or value == false then
-            value = fallback
-        end
-    end
-
-    return value, idx
-end
-
-local function parseBlock(tokens, idx, requiresClosingBrace)
-    local result = {}
-    local len = #tokens
-
-    while idx <= len do
-        local token = tokens[idx]
-
-        if token.val == "}" then
-            if not requiresClosingBrace then
-                error("Kurung kurawal penutup tanpa pembuka")
-            end
-            return result, idx + 1
-        end
-
-        if token.type ~= "IDENT" then
-            error("Token tidak terduga: " .. tostring(token.val))
-        end
-
-        if token.val == "block" then
-            local nameToken = tokens[idx + 1]
-            local openToken = tokens[idx + 2]
-            if not nameToken or nameToken.type ~= "IDENT"
-                or not openToken or openToken.val ~= "{" then
-                error("Deklarasi block harus berbentuk 'block <nama> {'")
-            end
-
-            local subBlock, newIdx = parseBlock(tokens, idx + 3, true)
-            result[nameToken.val] = subBlock
-            idx = newIdx
-        else
-            local key = token.val
-            local nextToken = tokens[idx + 1]
-
-            if nextToken and nextToken.val == "{" then
-                local subBlock, newIdx = parseBlock(tokens, idx + 2, true)
-                result[key] = subBlock
-                idx = newIdx
-            elseif nextToken and nextToken.val == "=" then
-                local finalVal
-                finalVal, idx = parseExpression(tokens, idx + 2)
-                if finalVal == nil then
-                    error("Nilai untuk '" .. key .. "' tidak tersedia")
-                end
-                result[key] = finalVal
-            else
-                error("Diharapkan '=' atau '{' setelah " .. key)
-            end
-        end
-    end
-
-    if requiresClosingBrace then
-        error("Kurung kurawal penutup diharapkan pada akhir input")
-    end
-
-    return result, idx
-end
+local presets = {
+    lightvm_safe = {
+        caps = { "Observe" }, runtimeConfig = { nightly = false },
+        errorOptions = { backtrace = false, explain = false, hint = true, diagnosticLinks = true },
+        securityConfig = copy(baseSecurity)
+    },
+    lightvm_development = {
+        caps = { "Observe", "Debug" }, runtimeConfig = { nightly = true },
+        errorOptions = { backtrace = true, explain = true, hint = true, diagnosticLinks = true },
+        securityConfig = copy(baseSecurity)
+    },
+    lightvm_restricted = {
+        caps = { "Observe" }, runtimeConfig = { nightly = false },
+        errorOptions = { backtrace = false, explain = false, hint = false, diagnosticLinks = false },
+        securityConfig = { maxIo = 0, maxImport = 0, maxAlloc = 25, maxCall = 100, maxJump = 50,
+            maxTicks = 250000, maxStackSize = 64, allowedImports = {}, unsafeMode = false, timeBudget = "Cheap" }
+    }
+}
 
 function M.parse(tokens)
-    local ast, nextIdx = parseBlock(tokens, 1, false)
-    if nextIdx ~= #tokens + 1 then
-        error("Token tersisa setelah akhir konfigurasi")
+    local idx = 1
+    local variables, aliases, envCache, envSeen = {}, {}, {}, {}
+    local profiles, blocks = {}, {}
+    local parseExpression
+
+    local function environment(name)
+        if aliases[name] ~= nil then return copy(aliases[name]) end
+        if not envSeen[name] then envCache[name] = os.getenv(name); envSeen[name] = true end
+        return envCache[name]
     end
-    return ast
+
+    local function atom()
+        local token = tokens[idx]
+        if not token then error("Value expected at end of input") end
+        if token.type == "OP" and token.val == "@" then idx = idx + 1; return atom() end
+        if token.val == "(" then
+            idx = idx + 1; local value = parseExpression()
+            if not tokens[idx] or tokens[idx].val ~= ")" then error("Expected ')'") end
+            idx = idx + 1; return value
+        end
+        if token.val == "[" then
+            idx = idx + 1; local result = {}
+            if tokens[idx] and tokens[idx].val ~= "]" then
+                while true do
+                    result[#result + 1] = parseExpression()
+                    if tokens[idx] and tokens[idx].val == "," then idx = idx + 1 else break end
+                end
+            end
+            if not tokens[idx] or tokens[idx].val ~= "]" then error("Expected ']'") end
+            idx = idx + 1; return setmetatable(result, ARRAY)
+        end
+        idx = idx + 1
+        if token.type == "ENV" then return environment(token.val) end
+        if token.type == "VAR" then
+            if variables[token.val] == nil then error("Undefined variable: " .. token.val) end
+            return copy(variables[token.val])
+        end
+        if token.type == "STRING" or token.type == "NUMBER" or token.type == "BOOL" then return token.val end
+        error("Invalid value: " .. tostring(token.val))
+    end
+
+    local function concatenate()
+        local value = atom()
+        while tokens[idx] and tokens[idx].val == "+" do
+            idx = idx + 1; local rhs = atom()
+            if value == nil or rhs == nil then error("Cannot concatenate an unset value") end
+            value = tostring(value) .. tostring(rhs)
+        end
+        return value
+    end
+    local function nilFallback()
+        local value = concatenate()
+        while tokens[idx] and tokens[idx].val == "??" do
+            idx = idx + 1; local rhs = concatenate(); if value == nil then value = rhs end
+        end
+        return value
+    end
+    parseExpression = function()
+        local value = nilFallback()
+        while tokens[idx] and tokens[idx].type == "IDENT" and tokens[idx].val == "or" do
+            idx = idx + 1; local rhs = nilFallback(); if value == nil or value == false then value = rhs end
+        end
+        return value
+    end
+
+    local function parseFields()
+        local explicit, defaults = {}, {}
+        while tokens[idx] and tokens[idx].val ~= "}" do
+            local isDefault = tokens[idx].type == "IDENT" and tokens[idx].val == "default"
+            if isDefault then idx = idx + 1 end
+            local name = tokens[idx]
+            if not name or name.type ~= "IDENT" then error("Field name expected") end
+            local key = name.val; idx = idx + 1
+            local target = isDefault and defaults or explicit
+            if target[key] ~= nil then error("Duplicate " .. (isDefault and "default" or "explicit") .. " field: " .. key) end
+            if tokens[idx] and tokens[idx].val == "=" then
+                idx = idx + 1; local value = parseExpression()
+                if value == nil then error("Value for '" .. key .. "' is unavailable") end
+                target[key] = value
+            elseif tokens[idx] and tokens[idx].val == "{" then
+                idx = idx + 1; local childExplicit, childDefaults = parseFields()
+                target[key] = childExplicit
+                defaults[key] = merge(defaults[key], childDefaults)
+            else error("Expected '=' or '{' after " .. key) end
+        end
+        if not tokens[idx] then error("Expected '}' at end of input") end
+        idx = idx + 1; return explicit, defaults
+    end
+
+    local function declaration(kind)
+        idx = idx + 1; local name = tokens[idx]
+        if not name or name.type ~= "IDENT" then error(kind .. " name expected") end
+        idx = idx + 1; local parent
+        if tokens[idx] and tokens[idx].val == "extends" then
+            local p = tokens[idx + 1]; if not p or p.type ~= "IDENT" then error("Profile name expected after extends") end
+            parent = p.val; idx = idx + 2
+        end
+        if not tokens[idx] or tokens[idx].val ~= "{" then error("Expected '{' after " .. name.val) end
+        idx = idx + 1; local explicit, defaults = parseFields()
+        return name.val, { parent = parent, explicit = explicit, defaults = defaults }
+    end
+
+    while idx <= #tokens do
+        local token = tokens[idx]
+        if token.type ~= "IDENT" then error("Unexpected token: " .. tostring(token.val)) end
+        if token.val == "local" then
+            local name = tokens[idx + 1]
+            if not name or name.type ~= "IDENT" or not tokens[idx + 2] or tokens[idx + 2].val ~= "=" then error("Invalid local declaration") end
+            if variables[name.val] ~= nil then error("Duplicate variable: " .. name.val) end
+            idx = idx + 3; variables[name.val] = parseExpression()
+            if variables[name.val] == nil then error("Variable value cannot be unset: " .. name.val) end
+        elseif token.val == "env" then
+            local name = tokens[idx + 1]
+            if not name or name.type ~= "IDENT" or not tokens[idx + 2] or tokens[idx + 2].val ~= "=" then error("Invalid environment alias") end
+            if aliases[name.val] ~= nil then error("Duplicate environment alias: " .. name.val) end
+            idx = idx + 3; local value = parseExpression()
+            if value == nil then error("Environment alias is unresolved: " .. name.val) end
+            if type(value) == "string" and value ~= "" and tonumber(value) ~= nil then value = tonumber(value) end
+            aliases[name.val] = value
+        elseif token.val == "defaults" then
+            local name, profile = declaration("Profile")
+            if profiles[name] or presets[name] then error("Duplicate profile: " .. name) end
+            profiles[name] = profile
+        elseif token.val == "block" then
+            local name, block = declaration("Block")
+            if blocks[name] then error("Duplicate block: " .. name) end
+            blocks[name] = block
+        else error("Expected local, env, defaults, or block; got " .. token.val) end
+    end
+
+    local resolved, resolving = {}, {}
+    local function resolveProfile(name)
+        if resolved[name] then return copy(resolved[name]) end
+        if presets[name] then return copy(presets[name]) end
+        local profile = profiles[name]; if not profile then error("Unknown profile: " .. tostring(name)) end
+        if resolving[name] then error("Profile inheritance cycle involving: " .. name) end
+        resolving[name] = true
+        local result = profile.parent and resolveProfile(profile.parent) or {}
+        result = merge(result, profile.explicit); result = merge(profile.defaults, result)
+        resolving[name] = nil; resolved[name] = result; return copy(result)
+    end
+
+    for name in pairs(profiles) do resolveProfile(name) end
+
+    local function includesRestricted(name, seen)
+        if name == "lightvm_restricted" then return true end
+        if not name or presets[name] then return false end
+        seen = seen or {}; if seen[name] then return false end; seen[name] = true
+        return profiles[name] and includesRestricted(profiles[name].parent, seen) or false
+    end
+
+    local output, metadata = {}, { presets = {}, restricted = {} }
+    for name, block in pairs(blocks) do
+        local result = block.parent and resolveProfile(block.parent) or {}
+        result = merge(result, block.explicit); result = merge(block.defaults, result)
+        output[name] = result; metadata.presets[name] = block.parent
+        metadata.restricted[name] = includesRestricted(block.parent)
+    end
+    return output, metadata
 end
 
 return M
