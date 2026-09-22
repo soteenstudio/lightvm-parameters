@@ -10,6 +10,19 @@ local function expectError(source, fragment, compile)
     assert(tostring(message):find(fragment, 1, true), "expected '" .. fragment .. "', got: " .. tostring(message))
 end
 
+local annotationTokens = lexer.tokenize('local default_tags: string[] = ["public", "v1"]')
+local expectedTokens = {
+    { "IDENT", "local" }, { "IDENT", "default_tags" }, { "PUNCT", ":" },
+    { "IDENT", "string" }, { "PUNCT", "[" }, { "PUNCT", "]" }, { "PUNCT", "=" },
+}
+for index, expected in ipairs(expectedTokens) do
+    assert(annotationTokens[index].type == expected[1] and annotationTokens[index].val == expected[2],
+        "type annotation token " .. index .. " must be " .. expected[1] .. "(" .. expected[2] .. ")")
+end
+local referenceTokens = lexer.tokenize('$env:APP_PORT $var:default_tags')
+assert(referenceTokens[1].type == "ENV" and referenceTokens[1].val == "APP_PORT", "$env references remain single tokens")
+assert(referenceTokens[2].type == "VAR" and referenceTokens[2].val == "default_tags", "$var references remain single tokens")
+
 local originalGetenv = os.getenv
 local calls = {}
 os.getenv = function(name)
@@ -84,6 +97,13 @@ block service: Service {
 }
 ]])
 assert(typed.service.database.ports[2] == 5433, "typed arrays and nested interfaces resolve")
+local typedDeclarations = compiler.resolve([[
+local default_tags: string[] = ["public", "v1"]
+env APP_PORT: number = $env:SET ?? "8080"
+block application { port: number = $env:APP_PORT tags: string[] = $var:default_tags }
+]])
+assert(typedDeclarations.application.port == 42, "typed env declarations and references resolve")
+assert(typedDeclarations.application.tags[2] == "v1", "typed locals, fields, and variable references resolve")
 local colonTyped = compiler.resolve('interface X { value: { label: string } } block x: X { value { label = "ok" } }')
 assert(colonTyped.x.value.label == "ok", "colon type member separators remain supported")
 expectError('local count: number = "many" block x {}', "expected number, got string", true)
@@ -94,6 +114,13 @@ expectError('interface X { enabled?: boolean } block x: X { extra = true }', "x.
 expectError('interface Inner { value: number } interface Outer { inner: Inner } block x: Outer { inner { value = "bad" } }', "x.inner.value", true)
 expectError('block x: Missing {}', "unknown interface", true)
 expectError('interface X { enabled boolean } block x: X {}', "expected '=' or ':' after interface field enabled", true)
+
+local configFile = assert(io.open("config.lcof", "r"))
+local documentedConfig = configFile:read("*all")
+assert(configFile:close())
+local documented = compiler.resolve(documentedConfig)
+assert(documented.application.server.port == 8080, "documented typed config example compiles")
+assert(documented.application.server.tags[2] == "v1", "documented config resolves typed local references")
 
 os.getenv = originalGetenv
 print("compiler tests passed")
