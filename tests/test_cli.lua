@@ -39,6 +39,7 @@ expectCliError("block app { value = 1", "parse", "expected '}'")
 expectCliError("block app extends absent {}", "resolution", "Unknown profile")
 expectCliError("interface App { port: number }\nblock app: App {}", "interface", "app.port")
 expectCliError("interface App { port: number }\nblock app: App { port = \"wrong\" }", "type", "app.port")
+expectCliError("interface App {\n  port number\n}\nblock app: App {}", "parse", "expected '=' or ':' after interface field port")
 
 os.remove(input)
 os.remove(output)

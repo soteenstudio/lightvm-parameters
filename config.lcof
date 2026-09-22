@@ -1,13 +1,13 @@
 interface Server {
-    host: string
-    port: number
-    tags: string[]
-    timeout: number
+    host = string
+    port = number
+    tags = string[]
+    timeout = number
 }
 
 interface Application {
-    enabled: boolean
-    server: Server
+    enabled = boolean
+    server = Server
 }
 
 local default_tags: string[] = ["public", "v1"]
