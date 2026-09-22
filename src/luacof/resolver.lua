@@ -1,3 +1,6 @@
+-- Copyright 2026 SoTeen Studio
+-- Evaluates declarations and recursively merges profiles, defaults, and blocks.
+
 local diagnostics = require("luacof.diagnostics")
 local M = {}
 local ARRAY = { __luacof_array = true }
@@ -8,6 +11,7 @@ local function copy(value)
     return setmetatable(result, getmetatable(value))
 end
 local function merge(base, overlay)
+    -- Objects merge recursively; arrays and scalar values replace the base value.
     local result = copy(base or {})
     for key, value in pairs(overlay or {}) do
         if type(value) == "table" and type(result[key]) == "table" and not (getmetatable(value) and getmetatable(value).__luacof_array) then
@@ -17,6 +21,7 @@ local function merge(base, overlay)
     return result
 end
 
+-- Resolve a parsed document and return output plus metadata for type checking.
 function M.resolve(document, options)
     options = options or {}
     local getenv = options.getenv or os.getenv
@@ -26,6 +31,7 @@ function M.resolve(document, options)
     local function fail(message, location) diagnostics.raise("resolution", message, location) end
     local function environment(name)
         if aliases[name] ~= nil then return copy(aliases[name]) end
+        -- Cache both present and absent process values for one resolution pass.
         if not envSeen[name] then envCache[name] = getenv(name); envSeen[name] = true end
         return envCache[name]
     end
@@ -93,6 +99,7 @@ function M.resolve(document, options)
         if resolving[name] then fail("Profile inheritance cycle involving: " .. name, profile.location) end
         resolving[name] = true
         local result = profile.parent and resolveProfile(profile.parent, profile.location) or {}
+        -- Explicit values override inheritance; defaults fill only remaining gaps.
         result = merge(result, profile.explicit); result = merge(profile.defaults, result)
         resolving[name] = nil; resolved[name] = result; return copy(result)
     end

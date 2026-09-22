@@ -1,3 +1,6 @@
+-- Copyright 2026 SoTeen Studio
+-- Validates resolved values against field annotations and reusable interfaces.
+
 local diagnostics = require("luacof.diagnostics")
 local M = {}
 
@@ -14,6 +17,7 @@ local function describe(spec)
     return spec.kind
 end
 
+-- Check resolved output using metadata collected by the resolver.
 function M.check(output, metadata)
     local interfaces = metadata.interfaces or {}
     local function validate(value, spec, path, location, interfaceMode)
@@ -35,6 +39,7 @@ function M.check(output, metadata)
                 else validate(value[name], field.type, path .. "." .. name, field.location or location, interfaceMode) end
             end
             for name in pairs(value) do
+                -- Object specifications and interfaces are exact, not open shapes.
                 if not spec.fields[name] then diagnostics.raise(interfaceMode and "interface" or "type", path .. "." .. name .. ": unknown field", location) end
             end
             return

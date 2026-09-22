@@ -1,7 +1,11 @@
+-- Copyright 2026 SoTeen Studio
+-- Command-line entry point for validating or compiling LuaCof documents.
+
 package.path = package.path .. ";src/?.lua;./?.lua"
 local compiler = require("compiler")
 local diagnostics = require("luacof.diagnostics")
 
+-- Parse command-line options, run the compiler, and report a process exit code.
 local function main()
     local check, plain, invalid, positional = false, false, false, {}
     for _, value in ipairs(arg) do
