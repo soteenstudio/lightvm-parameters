@@ -1,6 +1,8 @@
 -- parser.lua
 local M = {}
 
+local parseExpression
+
 local function parseAtom(tokens, idx)
     local token = tokens[idx]
     if not token then
@@ -11,8 +13,19 @@ local function parseAtom(tokens, idx)
         return parseAtom(tokens, idx + 1)
     end
 
-    if token.type == "STRING" or token.type == "NUMBER"
-        or token.type == "BOOL" or token.type == "ENV" then
+    if token.val == "(" then
+        local value, nextIdx = parseExpression(tokens, idx + 1)
+        if not tokens[nextIdx] or tokens[nextIdx].val ~= ")" then
+            error("Kurung tutup ')' diharapkan")
+        end
+        return value, nextIdx + 1
+    end
+
+    if token.type == "ENV" then
+        return os.getenv(token.name), idx + 1
+    end
+
+    if token.type == "STRING" or token.type == "NUMBER" or token.type == "BOOL" then
         return token.val, idx + 1
     end
 
@@ -35,13 +48,28 @@ local function parseConcatenation(tokens, idx)
     return value, idx
 end
 
-local function parseExpression(tokens, idx)
+local function parseNilFallback(tokens, idx)
     local value
     value, idx = parseConcatenation(tokens, idx)
 
-    while tokens[idx] and tokens[idx].type == "IDENT" and tokens[idx].val == "or" do
+    while tokens[idx] and tokens[idx].type == "OP" and tokens[idx].val == "??" do
         local fallback
         fallback, idx = parseConcatenation(tokens, idx + 1)
+        if value == nil then
+            value = fallback
+        end
+    end
+
+    return value, idx
+end
+
+parseExpression = function(tokens, idx)
+    local value
+    value, idx = parseNilFallback(tokens, idx)
+
+    while tokens[idx] and tokens[idx].type == "IDENT" and tokens[idx].val == "or" do
+        local fallback
+        fallback, idx = parseNilFallback(tokens, idx + 1)
         if value == nil or value == false then
             value = fallback
         end
