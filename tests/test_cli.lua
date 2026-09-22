@@ -21,6 +21,27 @@ local json = file:read("*all")
 file:close()
 assert(json:find('"application"', 1, true), "CLI output must contain the configuration")
 
+local invalid = os.tmpname()
+local errors = os.tmpname()
+local function expectCliError(source, category, fragment)
+    file = assert(io.open(invalid, "w"))
+    assert(file:write(source)); assert(file:close())
+    assert(not succeeded("lua src/cli.lua --plain --check " .. invalid .. " 2>" .. errors), "invalid input must fail")
+    file = assert(io.open(errors, "r"))
+    local message = file:read("*all"); file:close()
+    assert(message:find(category .. ":", 1, true), "CLI error must include category " .. category)
+    assert(message:match("%d+:%d+"), "CLI error must include a source location")
+    if fragment then assert(message:find(fragment, 1, true), "CLI error must include " .. fragment) end
+end
+
+expectCliError("block app { value = ! }", "lex", "unknown character")
+expectCliError("block app { value = 1", "parse", "expected '}'")
+expectCliError("block app extends absent {}", "resolution", "Unknown profile")
+expectCliError("interface App { port: number }\nblock app: App {}", "interface", "app.port")
+expectCliError("interface App { port: number }\nblock app: App { port = \"wrong\" }", "type", "app.port")
+
 os.remove(input)
 os.remove(output)
+os.remove(invalid)
+os.remove(errors)
 print("CLI tests passed")

@@ -11,6 +11,18 @@ lua tests/test_cli.lua
 ```
 
 `--check` parses and resolves the configuration without writing an output file.
+It also applies interface and type validation. Add `--plain` for stable,
+ASCII-only output in scripts.
+
+## Package layout
+
+The implementation lives under `src/luacof/`: `lexer.lua` records source
+locations, `parser.lua` builds declarations, `resolver.lua` applies expressions
+and inheritance, `type_checker.lua` validates types and interfaces, `json.lua`
+emits deterministic JSON, and `diagnostics.lua` formats failures.
+`luacof/compiler.lua` coordinates those phases. The existing
+`require("compiler")`, `require("lexer")`, and `require("parser")` entry points
+remain available as compatibility wrappers.
 
 ## Declarations
 
@@ -48,6 +60,58 @@ block application {
     port = $env:APP_PORT
     tags = $var:tags
 }
+```
+
+## Static types and interfaces
+
+Types are optional. They may annotate `local`, `env`, and configuration fields.
+Supported scalar types are `string`, `number`, and `boolean`; append `[]` for
+arrays or use `{ field: type }` for an object type.
+
+```lcof
+local tags: string[] = ["public", "v1"]
+env PORT: number = $env:APP_PORT ?? "8080"
+
+block worker {
+    enabled: boolean = true
+    metadata: { owner: string } { owner = "platform" }
+}
+```
+
+Interfaces are reusable exact object shapes. Fields marked with `?` are
+optional, and fields may refer to another named interface. Apply an interface
+after a block name:
+
+```lcof
+interface Server {
+    host: string
+    port: number
+    labels?: string[]
+}
+
+interface Application {
+    enabled: boolean
+    server: Server
+}
+
+block application: Application {
+    enabled = true
+    server { host = "127.0.0.1" port = 8080 }
+}
+```
+
+Applied interfaces reject missing required fields and unknown fields. Validation
+runs after profile inheritance, defaults, variables, environment aliases, and
+expression evaluation, so it checks the values that will actually be emitted.
+
+## Diagnostics
+
+Failures are categorized as `lex`, `parse`, `resolution`, `interface`, `type`,
+`json`, or `io`. When available, diagnostics include `line:column` and the full
+configuration path, for example:
+
+```text
+error[type] 8:5: application.server.port: expected number, got string
 ```
 
 `??` falls back only for an unset value, preserving `false` and `""`. `or`
