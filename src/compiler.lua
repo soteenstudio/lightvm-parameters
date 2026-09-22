@@ -1,7 +1,6 @@
 local M = {}
 local lexer = require("lexer")
 local parser = require("parser")
-local validation = require("lightvm_validation")
 
 local function escape(value)
     local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\b'] = '\\b', ['\f'] = '\\f', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
@@ -43,9 +42,7 @@ local function encode(value)
 end
 
 function M.resolve(sourceCode)
-    local ast, metadata = parser.parse(lexer.tokenize(sourceCode))
-    validation.validate(ast, metadata)
-    return ast, metadata
+    return parser.parse(lexer.tokenize(sourceCode))
 end
 
 function M.compile(sourceCode)

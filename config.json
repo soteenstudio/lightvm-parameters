@@ -1,1 +1,1 @@
-{"vm_config":{"caps":["Observe"],"errorOptions":{"backtrace":false,"diagnosticLinks":true,"explain":false,"hint":true},"runtimeConfig":{"nightly":false},"securityConfig":{"allowedImports":["math","time","utils"],"maxAlloc":50,"maxCall":200,"maxImport":3,"maxIo":100,"maxJump":100,"maxStackSize":128,"maxTicks":500000,"timeBudget":"Cheap","unsafeMode":false}}}
+{"application":{"enabled":true,"server":{"host":"127.0.0.1","port":8080,"tags":["public","v1"],"timeout":30}}}

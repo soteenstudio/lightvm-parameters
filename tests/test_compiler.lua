@@ -17,42 +17,43 @@ os.getenv = function(name)
 end
 
 local ast = parse([[
-local ticks = 500000
-local imports = ["math", "time"]
-env TICKS = $env:SET ?? "1000000"
+local workers = 8
+local tags = ["api", "stable"]
+env PORT = $env:SET ?? "8080"
 defaults base {
-    caps = ["Observe"]
-    runtimeConfig { nightly = false }
-    errorOptions { hint = true diagnosticLinks = true }
-    securityConfig { maxTicks = 1000000 maxStackSize = 128 }
+    enabled = true
+    server { host = "127.0.0.1" timeout = 30 }
+    logging { level = "info" format = "json" }
 }
 defaults development extends base {
-    errorOptions { backtrace = true explain = true }
+    logging { level = "debug" color = true }
 }
-block vm_config extends development {
-    default caps = ["Control"]
-    default securityConfig { maxImport = 3 }
-    securityConfig {
-        maxTicks = $var:ticks
-        maxIo = $env:TICKS
-        allowedImports = $var:imports
+block application extends development {
+    default enabled = false
+    default server { retries = 3 }
+    server {
+        workers = $var:workers
+        port = $env:PORT
+        tags = $var:tags
     }
 }
 ]])
-assert(ast.vm_config.caps[1] == "Observe", "inherited value wins over field default")
-assert(ast.vm_config.runtimeConfig.nightly == false, "nested profile field is inherited")
-assert(ast.vm_config.errorOptions.hint and ast.vm_config.errorOptions.backtrace, "profiles merge recursively")
-assert(ast.vm_config.securityConfig.maxTicks == 500000, "local value wins")
-assert(ast.vm_config.securityConfig.maxStackSize == 128, "inherited sibling remains")
-assert(ast.vm_config.securityConfig.maxImport == 3, "nested default is applied")
-assert(ast.vm_config.securityConfig.allowedImports[2] == "time", "variable arrays retain their type")
-assert(ast.vm_config.securityConfig.maxIo == 42, "numeric environment aliases retain schema types")
+assert(ast.application.enabled == true, "inherited value wins over field default")
+assert(ast.application.server.host == "127.0.0.1", "nested profile field is inherited")
+assert(ast.application.logging.format == "json" and ast.application.logging.color, "profiles merge recursively")
+assert(ast.application.server.workers == 8, "local value wins")
+assert(ast.application.server.timeout == 30, "inherited sibling remains")
+assert(ast.application.server.retries == 3, "nested default is applied")
+assert(ast.application.server.tags[2] == "stable", "variable arrays retain their type")
+assert(ast.application.server.port == 42, "numeric environment aliases are converted to numbers")
 assert(calls.SET == 1, "environment alias resolves once")
 
 assert(parse('env EMPTY_ALIAS = $env:EMPTY ?? "fallback" block x { value = $env:EMPTY_ALIAS }').x.value == "")
 assert(parse('env DISABLED = false ?? true block x { value = $env:DISABLED }').x.value == false)
+assert(parse('block x { value = (false or "fall") + "back" }').x.value == "fallback")
+assert(parse('block x { value = @"legacy" }').x.value == "legacy")
 assert(parse('block x { default value = "default" value = "explicit" }').x.value == "explicit")
-assert(parse('defaults p { caps = ["Observe", "Debug"] } block x extends p { caps = ["Control"] }').x.caps[2] == nil)
+assert(parse('defaults p { modes = ["read", "write"] } block x extends p { modes = ["read"] }').x.modes[2] == nil)
 expectError('env MISSING = $env:NOT_SET block x {}', "unresolved")
 expectError('env A = "x" env A = "y" block x {}', "Duplicate environment alias")
 expectError('local a = 1 local a = 2 block x {}', "Duplicate variable")
@@ -60,29 +61,14 @@ expectError('block x { value = $var:nope }', "Undefined variable")
 expectError('defaults x {} defaults x {} block a {}', "Duplicate profile")
 expectError('block x extends missing {}', "Unknown profile")
 expectError('defaults a extends b {} defaults b extends a {} block x {}', "cycle")
-expectError('block x { caps = [] caps = [] }', "Duplicate explicit field")
+expectError('block x { modes = [] modes = [] }', "Duplicate explicit field")
+local arbitrary = compiler.compile('block service { retries = -1 ratio = 1.5 labels = ["one", "one"] custom = true }')
+assert(arbitrary:find('"custom":true', 1, true), "generic fields are accepted")
+assert(arbitrary:find('"retries":-1', 1, true), "generic numeric values are accepted")
 
-local function preset(name, extra)
-    return compiler.compile("block vm_config extends " .. name .. " { " .. (extra or "") .. " }")
-end
-local safe = preset("lightvm_safe")
-assert(safe:find('"caps":["Observe"]', 1, true))
-assert(preset("lightvm_development"):find('"nightly":true', 1, true))
-assert(preset("lightvm_restricted"):find('"maxTicks":250000', 1, true))
-assert(preset("lightvm_safe", "securityConfig { maxTicks = 0 }"):find('"maxTicks":0', 1, true))
-
-expectError('block vm_config extends lightvm_safe { extra = true }', "vm_config.extra", true)
-expectError('block vm_config extends lightvm_safe { caps = ["Fly"] }', "vm_config.caps[1]", true)
-expectError('block vm_config extends lightvm_safe { caps = ["Debug"] }', "requires Observe or Control", true)
-expectError('block vm_config extends lightvm_safe { securityConfig { unsafeMode = true } }', "requires Unsafe", true)
-expectError('block vm_config extends lightvm_restricted { runtimeConfig { nightly = true } }', "vm_config.runtimeConfig.nightly", true)
-expectError('block vm_config extends lightvm_safe { securityConfig { allowedImports = ["math", "math"] } }', "duplicate import", true)
-expectError('block vm_config extends lightvm_safe { securityConfig { maxTicks = -1 } }', "non-negative integer", true)
-expectError('block vm_config extends lightvm_safe { securityConfig { maxTicks = 1.5 } }', "non-negative integer", true)
-
-local deterministic = compiler.compile('block z extends lightvm_safe {} block a extends lightvm_safe {}')
+local deterministic = compiler.compile('block z { value = 2 } block a { value = 1 }')
 assert(deterministic:sub(1, 5) == '{"a":', "JSON object keys are sorted")
-assert(deterministic == compiler.compile('block a extends lightvm_safe {} block z extends lightvm_safe {}'))
+assert(deterministic == compiler.compile('block a { value = 1 } block z { value = 2 }'))
 
 os.getenv = originalGetenv
 print("compiler tests passed")
