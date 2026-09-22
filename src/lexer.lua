@@ -15,7 +15,11 @@ function M.tokenize(source)
             while i <= len and source:sub(i, i) ~= "\n" do
                 i = i + 1
             end
-        elseif c == "{" or c == "}" or c == "=" or c == "+" then
+        elseif c == "?" and source:sub(i, i + 1) == "??" then
+            table.insert(tokens, { type = "OP", val = "??" })
+            i = i + 2
+        elseif c == "{" or c == "}" or c == "=" or c == "+"
+            or c == "(" or c == ")" then
             table.insert(tokens, { type = "PUNCT", val = c })
             i = i + 1
         elseif c == '"' then
@@ -47,10 +51,12 @@ function M.tokenize(source)
                 table.insert(tokens, { type = "NUMBER", val = tonumber(word) })
             elseif word:sub(1, 5) == "$env:" then
                 local envName = word:sub(6)
+                if envName == "" then
+                    error("Nama environment variable diharapkan setelah $env:")
+                end
                 table.insert(tokens, {
                     type = "ENV",
-                    name = envName,
-                    val = os.getenv(envName)
+                    name = envName
                 })
             else
                 table.insert(tokens, { type = "IDENT", val = word })
