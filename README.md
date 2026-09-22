@@ -66,7 +66,10 @@ block application {
 
 Types are optional. They may annotate `local`, `env`, and configuration fields.
 Supported scalar types are `string`, `number`, and `boolean`; append `[]` for
-arrays or use `{ field: type }` for an object type.
+arrays or use `{ field = type }` for an object type. `=` is the Lua-style
+separator for interface and object-type members; `:` remains accepted there for
+backward compatibility. `:` remains the type-annotation separator for `local`,
+`env`, and configuration fields, while `=` assigns configuration values.
 
 ```lcof
 local tags: string[] = ["public", "v1"]
@@ -74,7 +77,7 @@ env PORT: number = $env:APP_PORT ?? "8080"
 
 block worker {
     enabled: boolean = true
-    metadata: { owner: string } { owner = "platform" }
+    metadata: { owner = string } { owner = "platform" }
 }
 ```
 
@@ -84,14 +87,14 @@ after a block name:
 
 ```lcof
 interface Server {
-    host: string
-    port: number
-    labels?: string[]
+    host = string
+    port = number
+    labels? = string[]
 }
 
 interface Application {
-    enabled: boolean
-    server: Server
+    enabled = boolean
+    server = Server
 }
 
 block application: Application {

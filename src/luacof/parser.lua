@@ -15,6 +15,11 @@ function M.parse(tokens)
         local token = current(); if token.type ~= "IDENT" then fail(message or "identifier expected", token) end
         index = index + 1; return token
     end
+    local function typeMemberSeparator(kind, name)
+        if not accept("=") and not accept(":") then
+            fail("expected '=' or ':' after " .. kind .. " field " .. name.val)
+        end
+    end
 
     local parseType
     parseType = function()
@@ -25,7 +30,7 @@ function M.parse(tokens)
             while not accept("}") do
                 local name = identifier("object type field expected")
                 local optional = accept("?") ~= nil
-                expect(":")
+                typeMemberSeparator("object type", name)
                 fields[name.val] = { type = parseType(), optional = optional, location = name }
                 accept(",")
             end
@@ -100,7 +105,7 @@ function M.parse(tokens)
             while not accept("}") do
                 local field = identifier("interface field expected")
                 local optional = accept("?") ~= nil
-                expect(":")
+                typeMemberSeparator("interface", field)
                 if members[field.val] then fail("duplicate interface field: " .. field.val, field) end
                 members[field.val] = { type = parseType(), optional = optional, location = field }
                 accept(",")

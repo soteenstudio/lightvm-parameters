@@ -73,8 +73,8 @@ assert(deterministic == compiler.compile('block a { value = 1 } block z { value 
 assert(packageCompiler.compile('block a { value = 1 }') == compiler.compile('block a { value = 1 }'), "compatibility compiler entry point is preserved")
 
 local typed = compiler.resolve([[
-interface Database { host: string ports: number[] tls?: boolean }
-interface Service { name: string database: Database metadata: { owner: string } }
+interface Database { host = string ports = number[] tls? = boolean }
+interface Service { name = string database = Database metadata = { owner = string } }
 local ports: number[] = [5432, 5433]
 env SERVICE_NAME: string = $env:UNSET_NAME ?? "api"
 block service: Service {
@@ -84,13 +84,16 @@ block service: Service {
 }
 ]])
 assert(typed.service.database.ports[2] == 5433, "typed arrays and nested interfaces resolve")
+local colonTyped = compiler.resolve('interface X { value: { label: string } } block x: X { value { label = "ok" } }')
+assert(colonTyped.x.value.label == "ok", "colon type member separators remain supported")
 expectError('local count: number = "many" block x {}', "expected number, got string", true)
 expectError('block x { values: number[] = [1, "two"] }', "x.values[2]", true)
-expectError('block x { item: { name: string } = "bad" }', "expected object", true)
+expectError('block x { item: { name = string } = "bad" }', "expected object", true)
 expectError('interface X { enabled: boolean } block x: X {}', "x.enabled: missing required field", true)
 expectError('interface X { enabled?: boolean } block x: X { extra = true }', "x.extra: unknown field", true)
 expectError('interface Inner { value: number } interface Outer { inner: Inner } block x: Outer { inner { value = "bad" } }', "x.inner.value", true)
 expectError('block x: Missing {}', "unknown interface", true)
+expectError('interface X { enabled boolean } block x: X {}', "expected '=' or ':' after interface field enabled", true)
 
 os.getenv = originalGetenv
 print("compiler tests passed")
